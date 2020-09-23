@@ -1,12 +1,3 @@
-'''
-	********************************************
-			EVALITA 2020 Hatespreed
-	********************************************
-	=> main.py is the main code to run.
-	=> This attempt to preprocess the data, train a Deep model an predict labels
-	   in the task evalita 2020 hatespreed
-'''
-
 import sys
 import os
 import argparse
@@ -16,11 +7,11 @@ from code.preprocesing import *
 from code.utils import *
 from code.model import *
 
-DATA_PATH      = 'data/haspeede2_dev_taskAB.tsv'
+# DATA_PATH      = 'data/haspeede2_dev_taskAB.tsv'
 DATA_PATH      = 'data/EvalIta-HateSpeech2018/FB-folder-20200907T154715Z-001/FB-folder/FB-train/haspeede_FB-train.tsv'
-# EMBEDING_PATH  = 'data/it300.vec'
+EMBEDING_PATH  = 'data/it300.vec'
 DATA_PRED_PATH = 'data/EvalIta-HateSpeech2018/FB-folder-20200907T154715Z-001/FB-folder/FB-test/haspeede_FB-test.tsv'
-DATA_PRED_PATH = ''
+# DATA_PRED_PATH = ''
 
 F_VALIDATION   = 5
 SEQ_LENG       = 20 #40 #30
@@ -72,6 +63,13 @@ def check_params(arg=None):
 
 def calculatePreprocesing():
 	global preproces
+
+	if not os.path.isdir('data'):
+		os.mkdir('data')
+	if not os.path.isdir('models'):
+		os.mkdir('models')
+	if not os.path.isdir('photos'):
+		os.mkdir('photos')
 
 	preproces = False
 	if os.path.isfile('data/params.prm'):
@@ -216,6 +214,22 @@ def evalution_predictions():
 	del VOC
 	del model
 
+def delete_temporal_files():
+	if os.path.isfile('data/test.tsv')
+		os.remove('data/test.tsv')
+	if os.path.isfile('data/params.prm')
+		os.remove('data/params.prm')
+	if os.path.isfile('data/test_prep.csv')
+		os.remove('data/test_prep.csv')
+	if os.path.isfile('data/train.csv')
+		os.remove('data/train.csv')
+	if os.path.isfile('data/train_prep.csv')
+		os.remove('data/train_prep.csv')
+	if os.path.isfile('data/dev.csv')
+		os.remove('data/dev.csv')
+	if os.path.isfile('data/dev_prep.csv')
+		os.remove('data/dev_prep.csv')
+
 def main():
 	global DATA_PATH
 	calculatePreprocesing()
@@ -235,14 +249,82 @@ def main():
 
 	# Delete Temporal files
 
+def train_model(train_path, eval_path):
+	save_path = 'models/hate_model.pt'
+
+	VOC = {}
+	model = makeModel(LAYER1, SEQ_LENG, DRP,
+			Enb = generate_dictionary_from_embedding(EMBEDING_PATH, VOC, logs=True),
+			arquitectura='la')
+	initModel(model)
+
+	train_path = makePrepData(train_path, vocab=VOC, seq_len=SEQ_LENG, name_only=preproces, separete_sents=False)
+	eval_path  = makePrepData(eval_path,  vocab=VOC, seq_len=SEQ_LENG, name_only=preproces, separete_sents=False)
+
+	del VOC
+
+	train_data, train_load = makeData(train_path, BATCH, second=False)
+	val_data, val_load     = makeData(eval_path, BATCH, second=False)
+
+	board = TorchBoard()
+	total_acc_tr, total_acc_val = Train(model, train_load, val_load, lr=LR, 
+								  epochs=EPOCH, board=board, save_path=save_path)
+	board.show('photos/model' + str(1) + '.png')
+	print ('# END Sentence Encoder: train %s | val %s' % (total_acc_tr.max(), total_acc_val.max()))
+
+	del board
+	del val_load
+	del train_load
+	del train_data
+	del val_data
+	del model
+
+	return save_path
+
+def predict_test_data(pt_path, save_name='data/prediction.tsv'):
+	global DATA_PRED_PATH
+
+	if not os.path.isfile(DATA_PRED_PATH):
+		print ('# Data', colorizar(os.path.basename(DATA_PRED_PATH)), 'not found!')
+		return
+	
+	VOC = {}
+	model = makeModel(LAYER1, SEQ_LENG, DRP,
+			Enb = generate_dictionary_from_embedding(EMBEDING_PATH, VOC, logs=True),
+			arquitectura='la')
+
+	test_path = EVALITA2018_HATE(DATA_PRED_PATH, validation=(0,1), names=['data/test.tsv', ''])
+	test_path = makePrepData(test_path, vocab=VOC, seq_len=SEQ_LENG, name_only=preproces, separete_sents=False)
+	
+	print ('# Making Predictions as', colorizar(os.path.basename(save_name)))
+
+	test, test_l = makeData(test_path, BATCH, second=False, shuffle=False)
+	EvalData(model, test_l, filepath=pt_path,
+			save_path=save_name, 
+			header=('id', 'hs', ''), label_prediction=True)
+
+	del test_l
+	del test
+	del VOC
+	del model
+
+	return save_name
+
 def main2():
 	global DATA_PATH
-	# calculatePreprocesing()
+	calculatePreprocesing()
 
-	train_path, eval_path = EVALITA2020_HATE(DATA_PATH, validation=(0,10), tsk=TASK)
+	train_path, eval_path = EVALITA2018_HATE(DATA_PATH, validation=(0,10), task=TASK)
+	model_path = train_model(train_path, eval_path)
 
+	predi_path = predict_test_data(model_path)
+
+	order_as_reference(DATA_PRED_PATH, predi_path)
+	
+	# Opcional
+	delete_temporal_files()
 
 if __name__ == '__main__':
 	check_params(arg=sys.argv[1:])
-	main()
-	# main2()
+	# main()
+	main2()

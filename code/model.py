@@ -276,7 +276,7 @@ class AttFeat(nn.Module):
 		super(AttFeat, self).__init__()
 		self.size = feat_size
 		self.proj = proj_size
-		self.R    = nn.Sequential(nn.Linear(feat_size, proj_size), nn.ReLU())
+		self.R    = nn.Sequential(nn.Linear(feat_size, proj_size), nn.ReLU()) # nn.LeakyReLU()
 		self.A    = nn.Linear(proj_size, 1, bias=False)
 
 	def forward(self, X):
@@ -505,6 +505,14 @@ class MeanLayer(nn.Module):
 		x_hat = X.mean(dim=1)
 		return x_hat.squeeze()
 
+class AddNormLayer(nn.Module):
+	def __init__(self):
+		super(MeanLayer, self).__init__()
+
+	def forward(self, X):
+		x_hat = F.normalize(X.sum(dim=1), dim=-1)
+		return x_hat.squeeze()
+
 class ConvNet(nn.Module):
 	def __init__(self, neuron, leng, Embedding=None,feat_size=49, embeding_shape=(13,10), dropout=0.2):
 		super(ConvNet, self).__init__()
@@ -717,6 +725,61 @@ class LstmAtt_S(nn.Module):
 	def save(self, path):
 		torch.save(self.state_dict(), path) 
 
+class LA_Model(nn.Module):
+	def __init__(self, hidden_size, len_seq, Embedding, feat_size=49, embeding_shape=(1,300), dropout=0.2):
+		super(LA_Model, self).__init__()
+		self.criterion1 = nn.CrossEntropyLoss()#weight=torch.Tensor([0.7,0.3]))
+		self.hidden_size = hidden_size
+
+		# word embedding
+		self.emb_w   = nn.Embedding.from_pretrained(torch.from_numpy(Embedding))#, freeze=False)
+		
+		self.dro1    = nn.Dropout(dropout)
+		self.Layer1  = nn.LSTM(input_size= Embedding.shape[1],
+						hidden_size= hidden_size,
+						batch_first=True,
+						bidirectional=True,
+						num_layers=2)
+		self.nora    = nn.BatchNorm1d(hidden_size*2)
+		# self.Layer2 = AttBlock(len_seq=len_seq,
+		# 					   input_size=130,
+		# 					   output_size=len_seq,
+		# 					   hidden_size=hidden_size,
+		# 					   num_heads=3,
+		# 					   dropout=dropout)
+
+		self.RedLayer = MaxLayer() #AddNormLayer #MaxLayer()  # MeanLayer()
+		self.Dense1   = nn.Sequential(nn.Linear(hidden_size*2, feat_size), nn.LeakyReLU())
+		self.Dense2   = nn.Linear(40, 2)
+
+		self.FeatRed  = AttFeat(feat_size, 40)
+
+	def initHidden(self, batch):
+		return (torch.zeros(4,batch, self.hidden_size),
+				torch.zeros(4,batch, self.hidden_size))
+
+	def forward(self, X, Fe, ret_vec=False):
+		x1    = self.dro1(self.emb_w(X))
+		hc1   = self.initHidden(x1.shape[0])
+		x1, _ = self.Layer1(x1, hc1)
+		# hc2   = self.Layer2.init_hidden(x1.shape[0])
+		# x1    = self.Layer2(x1, hc2)
+		
+		x = self.RedLayer(x1)
+		y = self.Dense1(x)
+		y = self.FeatRed([y, Fe])
+
+		if ret_vec:
+			return y
+		y1 = self.Dense2(y).squeeze()
+		return y1
+
+	def load(self, path):
+		self.load_state_dict(torch.load(path))
+
+	def save(self, path):
+		torch.save(self.state_dict(), path) 
+
 class ManNet_S(nn.Module):
 	def __init__(self, hidden_size, len_seq, feat_size=49, dropout=0.2):
 		super(ManNet_S, self).__init__()
@@ -793,6 +856,8 @@ def makeModel(neuronas, leng_seq, dropout=0.2, Enb = None, arquitectura=0):
 		return ManNet(neuronas, leng_seq, dropout=dropout,Embedding=Enb, feat_size=feat_size)
 	elif arquitectura == 'conv':
 		return ConvNet(neuronas, leng_seq, dropout=dropout,Embedding=Enb, feat_size=feat_size)
+	elif arquitectura == 'la':
+		return LA_Model(neuronas, leng_seq, dropout=dropout,Embedding=Enb, feat_size=feat_size)
 
 
 class HaSpeed2Dataset(Dataset):

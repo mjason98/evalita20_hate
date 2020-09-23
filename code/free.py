@@ -48,7 +48,7 @@ class LangFreeLing:
     # activate mmorpho modules to be used in next call
     self.mf.set_active_options(False, True, True, True,  # select which among created 
                           True, True, False, True,  # submodules are to be used. 
-                          True, True, True, True ); # default: all created submodules are used
+                          True, True, False, True ); # default: all created submodules are used
 
     # create tagger
     self.tg=hmm_tagger(DATA+LANG+"/tagger.dat",True,2)

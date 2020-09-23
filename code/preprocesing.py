@@ -222,7 +222,7 @@ def makePrepData(filepath="data/name.tsv", vocab=None, seq_len=50, name_only=Fal
 		else:
 			# The size of the data remaing the same
 			denom += 1
-			sen, feat = IntSeq2(sen, vocab, max_size=seq_len, feture=True, mxs=stats)
+			sen, feat = IntSeq2(text, vocab, max_size=seq_len, feture=True, mxs=stats)
 			sen  = ' '.join([str(s) for s in sen])
 			feat = ' '.join([str(s) for s in feat])
 			DATA.append( (ide, sen, hs, feat) )
