@@ -194,8 +194,14 @@ def sentBuild(sen):
 	sen = re.sub('_', ' ', sen)
 	return sen
 
-def makePrepData(filepath="data/name.tsv", vocab=None, seq_len=50, name_only=False, separete_sents=True):
-	""" labels most be [id, txt, y] """
+def makePrepData(filepath="data/name.tsv", vocab=None, seq_len=50, name_only=False, separete_sents=True, feature_list=None):
+	''' labels most be [id, txt, y]
+		if feture list is given:
+			> labels most be [id, feature]
+			> the ordering of the row most be the same as the filepath
+			  cause is needed
+	'''
+	
 	new_name = filepath[:-4] + '_prep.csv'
 	if name_only and os.path.isfile(filepath):
 		return new_name
@@ -205,9 +211,16 @@ def makePrepData(filepath="data/name.tsv", vocab=None, seq_len=50, name_only=Fal
 	bar = StatusBar(len(data), title='# Prep ' + headerizar(os.path.basename(filepath)))
 	denom, stats = 0, [0,0]
 	
+	if feature_list is not None:
+		feature_list = [pd.read_csv(f, sep='\t') for f in feature_list]
+
 	for i in range(len(data)):
 		ide, text, hs = data.loc[i, 'id'], str(data.loc[i, 'txt']), data.loc[i, 'y']
-		
+		pre_feat = ''
+
+		# Fetures extracted in previous preprocessing
+		if feature_list is not None:
+			pre_feat = ' '.join([ f.loc[i, 'feature'] for f in feature_list])
 		# Convert word sentence to dictionary index sentence
 
 		if separete_sents:
@@ -220,7 +233,7 @@ def makePrepData(filepath="data/name.tsv", vocab=None, seq_len=50, name_only=Fal
 				
 				sen, feat = IntSeq2(sen, vocab, max_size=seq_len, feture=True, mxs=stats)
 				sen  = ' '.join([str(s) for s in sen])
-				feat = ' '.join([str(s) for s in feat])
+				feat = ' '.join([str(s) for s in feat]) + ' ' + pre_feat
 
 				DATA.append( (ide, sen, hs, feat) )
 		else:
@@ -228,7 +241,7 @@ def makePrepData(filepath="data/name.tsv", vocab=None, seq_len=50, name_only=Fal
 			denom += 1
 			sen, feat = IntSeq2(text, vocab, max_size=seq_len, feture=True, mxs=stats)
 			sen  = ' '.join([str(s) for s in sen])
-			feat = ' '.join([str(s) for s in feat])
+			feat = ' '.join([str(s) for s in feat]) + ' ' + pre_feat
 			DATA.append( (ide, sen, hs, feat) )
 
 		bar.update()
@@ -240,6 +253,7 @@ def makePrepData(filepath="data/name.tsv", vocab=None, seq_len=50, name_only=Fal
 	# Save the integer sequence in a new file
 	A, B = pd.Series([i for i, _, _, _ in DATA]), pd.Series([i for _, i, _, _ in DATA])
 	C, D = pd.Series([i for _, _, i, _ in DATA]), pd.Series([i for _, _, _, i in DATA])
+
 	result = pd.concat([A,B,C,D], axis=1)
 	result.to_csv(new_name, header=('id', 'txt', 'y', 'feat'), index=False)
 	del A
@@ -303,6 +317,28 @@ def EVALITA2018_HATE(filepath, task=None, validation=(0,1), name_only=False, nam
 		bar.update()
 	del data
 
+	# Augmentation
+	if len(re.findall('train', filepath)) > 0:
+		ext_path = 'data/training_set_sentipolc16.csv'
+		print ('# Adding Extra data', colorizar(os.path.basename(ext_path)))
+		data = pd.read_csv(ext_path)
+		for i in range(len(data)):
+			text, op, on = data.loc[i, 'text'], int(data.loc[i, 'opos']), int(data.loc[i, 'oneg'])
+			if op == on:
+				continue
+			DATA.append((-1,text, on))
+		del data 
+
+		ext_path = ['data/haspeede_TW-train.tsv', 'haspeede_FB-train.tsv']
+		for dp in ext_path:
+			print ('# Adding Extra data', colorizar(os.path.basename(dp)))
+			data = pd.read_csv(dp, sep='\t', header=None, names=['id','text','label'])
+			for i in range(len(dp)):
+				text, op, ide = data.loc[i, 'text'], int(data.loc[i, 'label']), int(data.loc[i, 'id'])
+				DATA.append((-1,text, op))
+			del data
+
+
 	I = [i for i,_, _ in DATA]
 	X = [x for _,x, _ in DATA]
 	Y = [y for _,_, y in DATA]
@@ -336,7 +372,7 @@ def EVALITA2018_HATE(filepath, task=None, validation=(0,1), name_only=False, nam
 	else:
 		return newR1
 
-def EVALITA2020_HATE(filepath, task=None, validation=(0,1), name_only=False, names=['data/train.tsv', 'data/dev.tsv'], tsk='hs'):
+def EVALITA2020_HATE(filepath, task='hs', validation=(0,1), name_only=False, names=['data/train.tsv', 'data/dev.tsv'], not_label=False):
 	''' Task: string 'hs' or 'stereotype' '''
 	if validation[1] > 1 and (validation[0] < 0 or validation[0] >= validation[1]):
 		print ("# WARNING:: validation parameter", validation, 'invalid, seted to (0,{})'.format(validation[1]))
@@ -350,8 +386,12 @@ def EVALITA2020_HATE(filepath, task=None, validation=(0,1), name_only=False, nam
 			return newR1,newR2
 		else:
 			return newR1
-
-	data = pd.read_csv(filepath, sep='\t')
+	
+	data = None
+	if not_label:
+		data = pd.read_csv(filepath, sep='\t', header=None, names=['id', 'text '])	
+	else:
+		data = pd.read_csv(filepath, sep='\t')	
 	bar = StatusBar(len(data), title='# Data')
 	
 	ini, fin = -2,-1
@@ -380,13 +420,38 @@ def EVALITA2020_HATE(filepath, task=None, validation=(0,1), name_only=False, nam
 	# ------------------------------------------------------------
 
 	for j,i in enumerate(ITER):
-		ide, text, hs = data.loc[i, 'id'], data.loc[i, 'text '], data.loc[i, tsk]
+		ide, text = data.loc[i, 'id'], data.loc[i, 'text ']
+		hs = 0
+		if not not_label:
+			hs = data.loc[i, task]
+
 		if j >= ini and j < fin:
 			VAL_DATA.append((ide, text, hs))
 		else:
 			DATA.append((ide, text, hs))
 		bar.update()
 	del data
+
+	# Augmentation
+	if len(re.findall('train|dev', filepath)) > 0 and not not_label:
+		ext_path = 'data/training_set_sentipolc16.csv'
+		print ('# Adding Extra data', colorizar(os.path.basename(ext_path)))
+		data = pd.read_csv(ext_path)
+		for i in range(len(data)):
+			text, op, on = data.loc[i, 'text'], int(data.loc[i, 'opos']), int(data.loc[i, 'oneg'])
+			if op == on:
+				continue
+			DATA.append((-1,text, on))
+		del data 
+
+		ext_path = ['data/haspeede_TW-train.tsv', 'data/haspeede_FB-train.tsv']
+		for dp in ext_path:
+			print ('# Adding Extra data', colorizar(os.path.basename(dp)))
+			data = pd.read_csv(dp, sep='\t', header=None, names=['id','text','label'])
+			for i in range(len(dp)):
+				text, op, ide = data.loc[i, 'text'], int(data.loc[i, 'label']), int(data.loc[i, 'id'])
+				DATA.append((-1,text, op))
+			del data
 
 	I = [i for i,_, _ in DATA]
 	X = [x for _,x, _ in DATA]
@@ -436,16 +501,16 @@ def order_as_reference(reference, file_system):
 	RET = []
 
 	with open(reference, 'r') as file:
+		OUT.write("id\ttext\ths\tstereotype\n")
 		for lines in file.readlines():
 			line = lines.split('\t')
-
 			my_label = None
 			try:
 				my_label = sys_dict[line[0]]
 			except:
 				print(headerizar('ERROR::'),
-				'The ID on reference file difers from system file, the final file will contain errors')
+				'The ID on reference file difers from system file, the final file will contain errors', line[0])
 				my_label = 0
-			OUT.write(line[0] + '\t' + re.sub('\n', '', line[1]) + '\t' + str(my_label) + '\n')
+			OUT.write(line[0] + '\t' + re.sub('\n', '', line[1]) + '\t' + str(my_label) + '\t 0' + '\n')
 	OUT.close()
 	print('# Done!! :)')

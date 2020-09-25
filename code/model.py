@@ -42,10 +42,16 @@ def Train(model, data_train, data_val=None, save_path='models/hate.pt', epochs=2
 		for data in data_train:
 			optim.zero_grad()
 
-			y_hat = model(data['x1'], data['f'])
+			y_hat, y_ml = model(data['x1'], data['f'])
 			y     = data['y']
 
-			loss = model.criterion1(y_hat, y)
+			loss1 = model.criterion1(y_hat, y)
+			loss2 = model.criterion2(y_ml,  y)
+
+			loss1 = (data['i'] >= 0) * loss1
+			loss2 = (data['i'] <  0) * loss2
+
+			loss = 0.8*loss1.mean() + 0.2*loss2.mean()
 			
 			loss.backward()
 			optim.step()
@@ -81,7 +87,7 @@ def Val(model, data, metrics=False):
 		with torch.no_grad():
 			barr = StatusBar(len(data), title=' Validating:')
 			for d in data:
-				y_hat = model(data['x1'], data['f'])
+				y_hat, _ = model(data['x1'], data['f'])
 				y_hat = y_hat.argmax(dim=1).numpy()
 
 				if true is None:
@@ -100,7 +106,7 @@ def Val(model, data, metrics=False):
 			barr = StatusBar(len(data), title=' Validating:')
 			v,s = 0,0
 			for d in data:
-				y_hat = model(d['x1'], d['f'])
+				y_hat,_ = model(d['x1'], d['f'])
 				v += (y_hat.argmax(dim=1) == d['y']).sum().item()
 				s += y_hat.shape[0]
 				barr.update(loss=[('acc', v/s)])
@@ -196,7 +202,8 @@ def EvalData(model, data, filepath=None, save_path=None, header=('id', 'hs', 've
 			if label_prediction:
 				# Predict the final label
 				
-				y_hat = model(d['x1'], d['f']).argmax(dim=-1)
+				y_hat, _ = model(d['x1'], d['f'])
+				y_hat  = y_hat.argmax(dim=-1)
 				for i in range(y_hat.shape[0]):
 					RET.append((ides[i].item(), y_hat[i].item()))
 			else:
@@ -726,10 +733,12 @@ class LstmAtt_S(nn.Module):
 		torch.save(self.state_dict(), path) 
 
 class LA_Model(nn.Module):
-	def __init__(self, hidden_size, len_seq, Embedding, feat_size=49, embeding_shape=(1,300), dropout=0.2):
+	def __init__(self, hidden_size, len_seq, Embedding, feat_size=61, embeding_shape=(1,300), dropout=0.2):
 		super(LA_Model, self).__init__()
-		self.criterion1 = nn.CrossEntropyLoss()#weight=torch.Tensor([0.7,0.3]))
+		self.criterion1 = nn.CrossEntropyLoss(reduction='none')#weight=torch.Tensor([0.7,0.3]))
+		self.criterion2 = nn.CrossEntropyLoss(reduction='none')#weight=torch.Tensor([0.7,0.3]))
 		self.hidden_size = hidden_size
+		self.feat_size = feat_size
 
 		# word embedding
 		self.emb_w   = nn.Embedding.from_pretrained(torch.from_numpy(Embedding)) #, freeze=False)
@@ -740,19 +749,23 @@ class LA_Model(nn.Module):
 						batch_first=True,
 						bidirectional=True,
 						num_layers=2)
-		# self.Layer1  = MAN(embeding_shape[1], hidden_size, memory_size=100)
-		# self.Layer2 = AttBlock(len_seq=len_seq,
-		# 					   input_size= hidden_size*2,
-		# 					   output_size=len_seq,
-		# 					   hidden_size=hidden_size,
-		# 					   num_heads=2,
-		# 					   dropout=dropout)
+		# self.Layer1  = MAN(Embedding.shape[1], hidden_size, memory_size=100)
+		self.Layer2 = AttBlock(len_seq=len_seq,
+							   input_size= hidden_size*2,
+							   output_size=len_seq,
+							   hidden_size=hidden_size,
+							   num_heads=2,
+							   dropout=dropout)
 
-		self.nora    = nn.BatchNorm1d(hidden_size*2)
+		self.nora     = nn.BatchNorm1d(hidden_size*2)
+		self.nora2    = nn.BatchNorm1d(hidden_size)
 
 		self.RedLayer = MaxLayer() #AddNormLayer() #MaxLayer()  # MeanLayer()
-		self.Dense1   = nn.Sequential(nn.Linear(hidden_size*2, feat_size), nn.LeakyReLU())
-		self.Dense2   = nn.Linear(64, 2)
+		self.Dense1   = nn.Sequential(nn.Linear(hidden_size, feat_size), nn.LeakyReLU())
+		self.Task1   = nn.Linear(64, 2)
+		self.Task2   = nn.Linear(64, 2)
+		self.Dense3   = nn.Sequential(nn.Linear(100, feat_size), nn.LeakyReLU())
+		self.Dense4   = nn.Sequential(nn.Linear(768, 192), nn.LeakyReLU(), nn.Linear(192, feat_size), nn.LeakyReLU())
 
 		self.FeatRed  = AttFeat(feat_size, 64)
 
@@ -760,27 +773,39 @@ class LA_Model(nn.Module):
 		return (torch.zeros(4,batch, self.hidden_size),
 				torch.zeros(4,batch, self.hidden_size))
 
-	def forward(self, X, Fe, ret_vec=False):
+	def forward(self, X, Fe, ret_vec=False, multi=False):
+		# Cause IG is pressent, the last 100 fetures are separated, and 768 from bert
+		fe1, fe2 = Fe[:, :self.feat_size], self.Dense3(Fe[:, self.feat_size:(self.feat_size+100)])
+		fe3 = self.Dense4(Fe[:, (self.feat_size+100):])
+
 		x1    = self.dro1(self.emb_w(X))
 		hc1   = self.initHidden(x1.shape[0])
 		x1, _ = self.Layer1(x1, hc1)
-		# hc2   = self.Layer2.init_hidden(x1.shape[0])
-		# x1    = self.Layer2(x1, hc2)
-
-		# x1 = self.Layer1(x1)
 
 		x1 = x1.permute((0,2,1))
 		x1 = self.nora(x1)
 		x1 = x1.permute((0,2,1))
+
+		hc2   = self.Layer2.init_hidden(x1.shape[0])
+		x1    = self.Layer2(x1, hc2)
+
+		# x1 = self.Layer1(x1)
+
+		# x1 = x1.permute((0,2,1))
+		# x1 = self.nora2(x1)
+		# x1 = x1.permute((0,2,1))
 		
 		x = self.RedLayer(x1)
 		y = self.Dense1(x)
-		y = self.FeatRed([y, Fe])
+		y = self.FeatRed([y, fe1, fe2, fe3])
 
 		if ret_vec:
 			return y
-		y1 = self.Dense2(y).squeeze()
-		return y1
+		y1 = self.Task1(y).squeeze()
+		y2 = self.Task2(y).squeeze()
+		
+		return y1, y2
+
 
 	def load(self, path):
 		self.load_state_dict(torch.load(path))
@@ -851,7 +876,7 @@ def makeModel(neuronas, leng_seq, dropout=0.2, Enb = None, arquitectura=0):
 	torch.manual_seed(12345)
 	np.random.seed(123)
 
-	feat_size = 49
+	feat_size = 61
 	max_vec_size = 19
 	
 	if arquitectura == 'lstm':

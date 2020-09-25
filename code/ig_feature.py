@@ -3,10 +3,18 @@ import os
 import pandas as pd 
 import numpy as np 
 
+import torch
+import torch.nn.functional as F
+from transformers import AutoModel, AutoTokenizer
+
 from .preprocesing import IntSeq2
 from .utils import StatusBar, colorizar
 
 from sklearn.feature_extraction.text import CountVectorizer
+
+BERT_PATH = '/DATA/Mainstorage/Prog/NLP/dbmdz/bert-base-italian-uncased'
+bert_model = None
+bert_tk = None
 
 def calculate_ig_part(vec1, vec2, T, not_term=False):
     if not_term == False:
@@ -21,7 +29,7 @@ def calculate_ig_part(vec1, vec2, T, not_term=False):
         term = 1.0 - vec1 / T
         return term * log_
 
-def calculate_IG(data_raw, ctn=50, save_path=None):
+def calculate_IG(data_raw, ctn=100, save_path=None):
     '''
         data_raw most be a pandas.Series and most have headers name: 'id', 'txt' and 'y'
     '''
@@ -64,7 +72,7 @@ def calculate_IG(data_raw, ctn=50, save_path=None):
     
     if ctn > len(d):
         print('# The amount of feature', ctn, 'is to big, the new sise is 50')
-        ctn = 50
+        ctn = 100
     d = d[-ctn:]
 
     if save_path is not None:
@@ -97,10 +105,52 @@ def selector_list_featurizer(flist, data_raw, save_file_path):
     F = pd.Series(F)
     data_id  = data_raw.drop(['txt', 'y'], axis=1)
     data_new = pd.concat([data_id, F], axis=1)
-    data_new.to_csv(save_file_path, header=('id', 'feature'), index=None)
+    data_new.to_csv(save_file_path, sep='\t',header=('id', 'feature'), index=None)
 
     del data_new
     del data_id
     del F
 
     return save_file_path
+
+def recarge_bert():
+    global bert_model
+    global bert_tk
+    bert_tk = AutoTokenizer.from_pretrained(BERT_PATH)
+    bert_model = AutoModel.from_pretrained(BERT_PATH)
+
+def delete_bert():
+    global bert_model
+    global bert_tk
+
+    del bert_model
+    del bert_tk
+
+    bert_model = None
+    bert_tk = None
+
+def create_bert_features(data_raw, save_file_path, max_length=20):
+    '''
+        data_raw: pandas Series with header (id, txt, y)
+        file_path_save: string, where to save a csv fetures
+    '''
+
+    assert (bert_model != None)
+    assert (bert_tk != None)
+
+    T = []
+    bar = StatusBar(len(data_raw), title='# Bert-king ' + colorizar(os.path.basename(save_file_path)))
+    for i in range(len(data_raw)):
+        text = data_raw.loc[i, 'txt']
+        with torch.no_grad():
+            inputs = bert_tk(text, return_tensors='pt', truncation=True, padding=True, max_length=max_length)
+            out = bert_model(**inputs, output_hidden_states=True)
+
+            # Add and Norm to the 2nd hidden layer
+            feat = F.normalize(out.hidden_states[2].sum(dim=1), dim=-1).reshape(-1).numpy()
+            T.append(' '.join([str(v) for v in feat]))
+        bar.update()
+    
+    datid  = data_raw.drop(['txt', 'y'], axis=1)
+    data_new = pd.concat([datid, pd.Series(T)], axis=1)
+    data_new.to_csv(save_file_path, sep='\t',header=('id', 'feature'), index=None)

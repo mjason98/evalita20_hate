@@ -3,19 +3,18 @@ import os
 import argparse
 import pickle
 
-from code.preprocesing import EVALITA2018_HATE
+from code.preprocesing import EVALITA2018_HATE, makePrepData, order_as_reference, EVALITA2020_HATE
 from code.utils import colorizar
 from code.model import *
-from code.ig_feature import calculate_IG, selector_list_featurizer
+from code.ig_feature import calculate_IG, selector_list_featurizer, create_bert_features, recarge_bert, delete_bert
 
-# DATA_PATH      = 'data/haspeede2_dev_taskAB.tsv'
-DATA_PATH      = 'data/EvalIta-HateSpeech2018/FB-folder-20200907T154715Z-001/FB-folder/FB-train/haspeede_FB-train.tsv'
+DATA_PATH      = 'data/haspeede2_dev_taskAB.tsv'
 EMBEDING_PATH  = 'data/it300.vec'
-DATA_PRED_PATH = 'data/EvalIta-HateSpeech2018/FB-folder-20200907T154715Z-001/FB-folder/FB-test/haspeede_FB-test.tsv'
-# DATA_PRED_PATH = ''
+DATA_PRED_PATH = 'data/haspeede2_test_taskAB-tweets.tsv'
+# DATA_PRED_PATH = 'data/haspeede2-test_taskAB-news.tsv'
 
 F_VALIDATION   = 5
-SEQ_LENG       = 20 #40 #30
+SEQ_LENG       = 32 #40 #30
 BATCH   	   = 128
 LAYER1		   = 128 #100 #70 #50
 LR   		   = 0.01
@@ -85,136 +84,6 @@ def calculatePreprocesing():
 	pickle.dump(tup, f)
 	f.close()
 
-def train_sentence_encoder(train_path, eval_path):
-	global DATA_PATH
-
-	save_path = 'models/hate_sentenc.pt'
-	# First Block: Training the sentence encoder
-	VOC = {}
-	model = makeModel(LAYER1, SEQ_LENG, DRP,
-			Enb = generate_dictionary_from_embedding(EMBEDING_PATH, VOC, logs=True),
-			arquitectura=FIRST_ARQ) # siamlstm # best conv
-
-	train_path = makePrepData(train_path, vocab=VOC, seq_len=SEQ_LENG, name_only=preproces)
-	eval_path  = makePrepData(eval_path,  vocab=VOC, seq_len=SEQ_LENG, name_only=preproces)
-
-	initModel(model)
-
-	train_data, train_load = makeData(train_path, BATCH, second=False)
-	val_data, val_load     = makeData(eval_path, BATCH, second=False)
-
-	board = TorchBoard()
-	total_acc_tr, total_acc_val = Train(model, train_load, val_load, lr=LR, 
-									epochs=EPOCH, board=board, save_path=save_path)
-	board.show('photos/model_enc' + str(1) + '.png')
-	print ('# END Sentence Encoder: train %s | val %s' % (total_acc_tr.max(), total_acc_val.max()))
-
-	del board
-	del val_load
-	del train_load
-	del train_data
-	del val_data
-	
-	train_data, train_load = makeData(train_path, BATCH, second=False, shuffle=False)
-	val_data, val_load     = makeData(eval_path,  BATCH, second=False, shuffle=False)
-
-	# Second Block: Mixing the sentence vectors to train the next model
-	EvalDataVec(model, train_load, save_path, out_path='data/encoder_train.csv', leng_fized=19)
-	EvalDataVec(model, val_load,  save_path, out_path='data/encoder_eval.csv'  , leng_fized=19)
-
-	del model
-	del VOC
-	del val_load
-	del train_load
-	del train_data
-	del val_data
-	# clear_preprocessing()
-	# clear_free()
-
-def train_decoder_sentence():
-	# Multi model Decoder
-	global merger_list
-	for arq in merger_list:
-		VOC     = {}
-		total_acc_val, total_acc_tr = 0, 0
-		model = makeModel(LAYER1, SEQ_LENG, DRP, arquitectura=arq,
-				Enb = generate_dictionary_from_embedding(EMBEDING_PATH, VOC,
-					  logs=True, message_logs='with arq. '+arq))
-		del VOC
-		initModel(model)
-		
-		train_path, val_path = 'data/encoder_train.csv', 'data/encoder_eval.csv'
-		test_path = 'data/encoder_test.csv'
-
-		train_data, train_load = makeData(train_path, BATCH, second=True)
-		val_data, val_load     = makeData(val_path, BATCH, second=True)
-		board = TorchBoard()
-
-		# Training the Decoder Arquitecture
-		total_acc_tr, total_acc_val = Train(model, train_load, val_load, 
-										lr=LR, epochs=EPOCH, board=board,
-										save_path='models/hate_dec_'+ arq +'.pt')
-		board.show('photos/model_dec'+ arq +'.png')
-		print ('# END: train %s | val %s' % (total_acc_tr.max(), total_acc_val.max()))
-		del board
-
-		# Saving vector representation per model
-		EvalData(model, train_load, filepath='models/hate_dec_'+ arq +'.pt', save_path='data/sage_train' + arq + '.csv')
-		EvalData(model, val_load, filepath='models/hate_dec_'+ arq +'.pt', save_path='data/sage_eval' + arq + '.csv')
-
-		del val_load
-		del train_load
-		del train_data
-		del val_data
-
-		# Prediction Section if test data exist
-		if os.path.isfile(test_path):
-			test_data, test_load = makeData(test_path, BATCH, second=True)
-			EvalData(model, test_load, filepath='models/hate_dec_'+ arq +'.pt', save_path='data/sage_test' + arq + '.csv')
-
-			del test_data
-			del test_load
-		del model
-
-	# Making the final data to merge vector representation of all models
-	path_list_train = []
-	path_list_eval  = []
-	path_list_test  = []
-	for arq in merger_list:
-		path_list_train.append('data/sage_train' + arq + '.csv')
-		path_list_eval.append('data/sage_eval' + arq + '.csv')
-		path_list_test.append('data/sage_test' + arq + '.csv')
-
-	makeSageData(path_list_train, 'data/train_sage.csv')
-	makeSageData(path_list_eval, 'data/dev_sage.csv')
-	
-	if os.path.isfile(test_path):
-		makeSageData(path_list_test, 'data/test_sage.csv')
-
-def evalution_predictions():
-	global DATA_PRED_PATH
-
-	if not os.path.isfile(DATA_PRED_PATH):
-		return
-
-	test_path = EVALITA2018_HATE(DATA_PRED_PATH, validation=(0,1), names=['data/test.tsv', ''])
-	
-	# First model evaluation
-	
-	VOC, save_path = {}, 'models/hate_sentenc.pt'
-	model = makeModel(LAYER1, SEQ_LENG, DRP,
-			Enb = generate_dictionary_from_embedding(EMBEDING_PATH, VOC, logs=True),
-			arquitectura=FIRST_ARQ)
-	
-	test_path = makePrepData(test_path, vocab=VOC, seq_len=SEQ_LENG, name_only=preproces)
-	test_data, test_load = makeData(test_path, BATCH, second=False, shuffle=False)
-	EvalDataVec(model, test_load, save_path, out_path='data/encoder_test.csv', leng_fized=19)
-
-	del test_load
-	del test_data
-	del VOC
-	del model
-
 def delete_temporal_files():
 	if os.path.isfile('data/test.tsv'):
 		os.remove('data/test.tsv')
@@ -232,8 +101,13 @@ def delete_temporal_files():
 		os.remove('data/dev.tsv')
 	if os.path.isfile('data/dev_prep.csv'):
 		os.remove('data/dev_prep.csv')
+	if os.path.isfile('data/dev_feat.csv'):
+		os.remove('data/dev_feat.csv')
 
-def prep_features(read_write_paths, first_path=None):
+def prep_features(read_write_paths, first_path=None, bert=False):
+	if bert:
+		recarge_bert()
+
 	# Calculate the important words for a first time if is needed
 	ig = None
 	if not os.path.isfile('data/iglist'):
@@ -252,18 +126,26 @@ def prep_features(read_write_paths, first_path=None):
 	for r, w in read_write_paths:
 		data_raw = pd.read_csv(r, sep='\t')
 		selector_list_featurizer(ig, data_raw, w)
+		if bert:
+			w_bert = os.path.join(os.path.dirname(w), 'bert_' + os.path.basename(w))
+			create_bert_features(data_raw, w_bert, max_length=SEQ_LENG)
+	
+	if bert:
+		delete_bert()
 
 def train_model(train_path, eval_path):
 	save_path = 'models/hate_model.pt'
+
+	return save_path
 
 	VOC = {}
 	model = makeModel(LAYER1, SEQ_LENG, DRP,
 			Enb = generate_dictionary_from_embedding(EMBEDING_PATH, VOC, logs=True),
 			arquitectura='la')
-	initModel(model)
+	# initModel(model)
 
-	train_path = makePrepData(train_path, vocab=VOC, seq_len=SEQ_LENG, name_only=preproces, separete_sents=False)
-	eval_path  = makePrepData(eval_path,  vocab=VOC, seq_len=SEQ_LENG, name_only=preproces, separete_sents=False)
+	train_path = makePrepData(train_path, vocab=VOC, seq_len=SEQ_LENG, name_only=preproces, separete_sents=False, feature_list=['data/train_feat.tsv', 'data/bert_train_feat.tsv'])
+	eval_path  = makePrepData(eval_path,  vocab=VOC, seq_len=SEQ_LENG, name_only=preproces, separete_sents=False, feature_list=['data/dev_feat.tsv', 'data/bert_dev_feat.tsv'])
 
 	del VOC
 
@@ -291,15 +173,16 @@ def predict_test_data(pt_path, save_name='data/prediction.tsv'):
 	if not os.path.isfile(DATA_PRED_PATH):
 		print ('# Data', colorizar(os.path.basename(DATA_PRED_PATH)), 'not found!')
 		return
-	
+
+	test_path = EVALITA2020_HATE(DATA_PRED_PATH, validation=(0,1), names=['data/test.tsv', ''], not_label=True)
+	prep_features([(test_path, 'data/test_feat.tsv')], bert=True)
+
 	VOC = {}
 	model = makeModel(LAYER1, SEQ_LENG, DRP,
 			Enb = generate_dictionary_from_embedding(EMBEDING_PATH, VOC, logs=True),
 			arquitectura='la')
 
-	test_path = EVALITA2018_HATE(DATA_PRED_PATH, validation=(0,1), names=['data/test.tsv', ''])
-	prep_features([(test_path, 'data/test_feat.csv')])
-	test_path = makePrepData(test_path, vocab=VOC, seq_len=SEQ_LENG, name_only=preproces, separete_sents=False)
+	test_path = makePrepData(test_path, vocab=VOC, seq_len=SEQ_LENG, name_only=preproces, separete_sents=False, feature_list=['data/test_feat.tsv', 'data/bert_test_feat.tsv'])
 	
 	print ('# Making Predictions as', colorizar(os.path.basename(save_name)))
 
@@ -319,14 +202,15 @@ def main():
 	global DATA_PATH
 	calculatePreprocesing()
 
-	train_path, eval_path = EVALITA2018_HATE(DATA_PATH, validation=(0,10), task=TASK)
-	prep_features([(train_path, 'data/train_feat.csv'), (eval_path, 'data/dev_feat.csv')], first_path=train_path)
+	train_path, eval_path = EVALITA2020_HATE(DATA_PATH, validation=(0,10), task=TASK)
 
-	# model_path = train_model(train_path, eval_path)
+	# prep_features([(train_path, 'data/train_feat.tsv'), (eval_path, 'data/dev_feat.tsv')], first_path=train_path, bert=True)
 
-	# predi_path = predict_test_data(model_path)
+	model_path = train_model(train_path, eval_path)
 
-	# order_as_reference(DATA_PRED_PATH, predi_path)
+	predi_path = predict_test_data(model_path)
+
+	order_as_reference(DATA_PRED_PATH, predi_path)
 	
 	# Opcional
 	# delete_temporal_files()
