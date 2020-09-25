@@ -233,12 +233,16 @@ def delete_temporal_files():
 	if os.path.isfile('data/dev_prep.csv'):
 		os.remove('data/dev_prep.csv')
 
-def prep_features(read_write_paths):	
+def prep_features(read_write_paths, first_path=None):
 	# Calculate the important words for a first time if is needed
 	ig = None
 	if not os.path.isfile('data/iglist'):
-		print ('# Feature Selection')
-		data_raw = pd.read_csv(train_path, sep='\t', names=('id', 'text', 'l'))
+		if first_path is None:
+			print ('# ERROR:: ig fetures need a train data file in the first calculation')
+			assert (first_path != None)
+
+		print ('# First IG list creation')
+		data_raw = pd.read_csv(first_path, sep='\t')
 		ig = calculate_IG(data_raw, save_path='data/iglist')
 	else:
 		file = open('data/iglist', 'rb')
@@ -246,7 +250,7 @@ def prep_features(read_write_paths):
 		file.close()
 
 	for r, w in read_write_paths:
-		data_raw = pd.read_csv(r, sep='\t', names=('id', 'text', 'l'))
+		data_raw = pd.read_csv(r, sep='\t')
 		selector_list_featurizer(ig, data_raw, w)
 
 def train_model(train_path, eval_path):
@@ -316,7 +320,7 @@ def main():
 	calculatePreprocesing()
 
 	train_path, eval_path = EVALITA2018_HATE(DATA_PATH, validation=(0,10), task=TASK)
-	prep_features([(train_path, 'data/train_feat.csv'), (eval_path, 'data/dev_feat.csv')])
+	prep_features([(train_path, 'data/train_feat.csv'), (eval_path, 'data/dev_feat.csv')], first_path=train_path)
 
 	# model_path = train_model(train_path, eval_path)
 

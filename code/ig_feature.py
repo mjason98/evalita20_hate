@@ -23,13 +23,14 @@ def calculate_ig_part(vec1, vec2, T, not_term=False):
 
 def calculate_IG(data_raw, ctn=50, save_path=None):
     '''
-        data_raw most be a pandas.Series and most have headers name: 'id', 'text' and 'l'
+        data_raw most be a pandas.Series and most have headers name: 'id', 'txt' and 'y'
     '''
     
     data, l = [], []
     bar = StatusBar(len(data_raw), title='# Data')
     for i in range(len(data_raw)):
-        txt, y = data_raw.loc[i, 'text'] , int(data_raw.loc[i,'l'])
+        txt, y = data_raw.loc[i, 'txt'] , int(data_raw.loc[i,'y'])
+        
         txt = IntSeq2(txt, None, None, only_sent_prep=True)
         data.append(txt)
         l.append(y)
@@ -75,14 +76,14 @@ def calculate_IG(data_raw, ctn=50, save_path=None):
 
 def selector_list_featurizer(flist, data_raw, save_file_path):
     '''
-        data_raw most be a pandas.Series and most have headers name: 'id', 'text' and 'l'
+        data_raw most be a pandas.Series and most have headers name: 'id', 'txt' and 'y'
     '''
     fdic = dict([(n, i) for i, n in enumerate(flist)])
 
     F = []
     bar = StatusBar(len(data_raw), title='# Making ' + colorizar(os.path.basename(save_file_path)))
     for i in range(len(data_raw)):
-        txt = data_raw.loc[i, 'text']
+        txt = data_raw.loc[i, 'txt']
         txt = IntSeq2(txt, None, None, only_sent_prep=True).split()
         feat = np.zeros(len(flist))
         for word in txt:
@@ -94,7 +95,7 @@ def selector_list_featurizer(flist, data_raw, save_file_path):
         bar.update()
 
     F = pd.Series(F)
-    data_id  = data_raw.drop(['text', 'l'], axis=1)
+    data_id  = data_raw.drop(['txt', 'y'], axis=1)
     data_new = pd.concat([data_id, F], axis=1)
     data_new.to_csv(save_file_path, header=('id', 'feature'), index=None)
 
