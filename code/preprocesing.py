@@ -166,8 +166,12 @@ def sent_prep(text, function=todo, ret_list=False, counter=None):
 	else:
 		return sents
 
-def IntSeq2(text, dictionary, max_size=50, mxs=None, feture=False):
+def IntSeq2(text, dictionary, max_size=50, mxs=None, feture=False, only_sent_prep=False):
 	text = sent_prep(text)
+	
+	if only_sent_prep:
+		return text
+		
 	if feture:
 		feat = list(getHurtF(text)) + list(getWordVec(text, max_size))
 	text = text.split()

@@ -3,9 +3,10 @@ import os
 import argparse
 import pickle
 
-from code.preprocesing import *
-from code.utils import *
+from code.preprocesing import EVALITA2018_HATE
+from code.utils import colorizar
 from code.model import *
+from code.ig_feature import calculate_IG, selector_list_featurizer
 
 # DATA_PATH      = 'data/haspeede2_dev_taskAB.tsv'
 DATA_PATH      = 'data/EvalIta-HateSpeech2018/FB-folder-20200907T154715Z-001/FB-folder/FB-train/haspeede_FB-train.tsv'
@@ -215,39 +216,38 @@ def evalution_predictions():
 	del model
 
 def delete_temporal_files():
-	if os.path.isfile('data/test.tsv')
+	if os.path.isfile('data/test.tsv'):
 		os.remove('data/test.tsv')
-	if os.path.isfile('data/params.prm')
+	if os.path.isfile('data/iglist'):
+		os.remove('data/iglist')
+	if os.path.isfile('data/params.prm'):
 		os.remove('data/params.prm')
-	if os.path.isfile('data/test_prep.csv')
+	if os.path.isfile('data/test_prep.csv'):
 		os.remove('data/test_prep.csv')
-	if os.path.isfile('data/train.csv')
-		os.remove('data/train.csv')
-	if os.path.isfile('data/train_prep.csv')
+	if os.path.isfile('data/train.tsv'):
+		os.remove('data/train.tsv')
+	if os.path.isfile('data/train_prep.csv'):
 		os.remove('data/train_prep.csv')
-	if os.path.isfile('data/dev.csv')
-		os.remove('data/dev.csv')
-	if os.path.isfile('data/dev_prep.csv')
+	if os.path.isfile('data/dev.tsv'):
+		os.remove('data/dev.tsv')
+	if os.path.isfile('data/dev_prep.csv'):
 		os.remove('data/dev_prep.csv')
 
-def main():
-	global DATA_PATH
-	calculatePreprocesing()
+def prep_features(read_write_paths):	
+	# Calculate the important words for a first time if is needed
+	ig = None
+	if not os.path.isfile('data/iglist'):
+		print ('# Feature Selection')
+		data_raw = pd.read_csv(train_path, sep='\t', names=('id', 'text', 'l'))
+		ig = calculate_IG(data_raw, save_path='data/iglist')
+	else:
+		file = open('data/iglist', 'rb')
+		ig = pickle.load(file)
+		file.close()
 
-	train_path, eval_path = EVALITA2020_HATE(DATA_PATH, validation=(0,10)) #2018
-	
-	# Sentece Encoder Training Process
-	train_sentence_encoder(train_path, eval_path)
-	evalution_predictions()
-	
-	# Sentece Decoder Training Process
-	train_decoder_sentence()
-
-	# Final Layer Training
-	runSageTrain(BATCH)
-	# order_as_reference(DATA_PRED_PATH, 'data/prediction.tsv')
-
-	# Delete Temporal files
+	for r, w in read_write_paths:
+		data_raw = pd.read_csv(r, sep='\t', names=('id', 'text', 'l'))
+		selector_list_featurizer(ig, data_raw, w)
 
 def train_model(train_path, eval_path):
 	save_path = 'models/hate_model.pt'
@@ -270,7 +270,7 @@ def train_model(train_path, eval_path):
 	total_acc_tr, total_acc_val = Train(model, train_load, val_load, lr=LR, 
 								  epochs=EPOCH, board=board, save_path=save_path)
 	board.show('photos/model' + str(1) + '.png')
-	print ('# END Sentence Encoder: train %s | val %s' % (total_acc_tr.max(), total_acc_val.max()))
+	print ('# END Model: train %s | val %s' % (total_acc_tr.max(), total_acc_val.max()))
 
 	del board
 	del val_load
@@ -294,6 +294,7 @@ def predict_test_data(pt_path, save_name='data/prediction.tsv'):
 			arquitectura='la')
 
 	test_path = EVALITA2018_HATE(DATA_PRED_PATH, validation=(0,1), names=['data/test.tsv', ''])
+	prep_features([(test_path, 'data/test_feat.csv')])
 	test_path = makePrepData(test_path, vocab=VOC, seq_len=SEQ_LENG, name_only=preproces, separete_sents=False)
 	
 	print ('# Making Predictions as', colorizar(os.path.basename(save_name)))
@@ -310,21 +311,22 @@ def predict_test_data(pt_path, save_name='data/prediction.tsv'):
 
 	return save_name
 
-def main2():
+def main():
 	global DATA_PATH
 	calculatePreprocesing()
 
 	train_path, eval_path = EVALITA2018_HATE(DATA_PATH, validation=(0,10), task=TASK)
-	model_path = train_model(train_path, eval_path)
+	prep_features([(train_path, 'data/train_feat.csv'), (eval_path, 'data/dev_feat.csv')])
 
-	predi_path = predict_test_data(model_path)
+	# model_path = train_model(train_path, eval_path)
 
-	order_as_reference(DATA_PRED_PATH, predi_path)
+	# predi_path = predict_test_data(model_path)
+
+	# order_as_reference(DATA_PRED_PATH, predi_path)
 	
 	# Opcional
-	delete_temporal_files()
+	# delete_temporal_files()
 
 if __name__ == '__main__':
 	check_params(arg=sys.argv[1:])
-	# main()
-	main2()
+	main()

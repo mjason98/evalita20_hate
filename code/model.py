@@ -276,7 +276,7 @@ class AttFeat(nn.Module):
 		super(AttFeat, self).__init__()
 		self.size = feat_size
 		self.proj = proj_size
-		self.R    = nn.Sequential(nn.Linear(feat_size, proj_size), nn.ReLU()) # nn.LeakyReLU()
+		self.R    = nn.Sequential(nn.Linear(feat_size, proj_size), nn.LeakyReLU())
 		self.A    = nn.Linear(proj_size, 1, bias=False)
 
 	def forward(self, X):
@@ -507,7 +507,7 @@ class MeanLayer(nn.Module):
 
 class AddNormLayer(nn.Module):
 	def __init__(self):
-		super(MeanLayer, self).__init__()
+		super(AddNormLayer, self).__init__()
 
 	def forward(self, X):
 		x_hat = F.normalize(X.sum(dim=1), dim=-1)
@@ -732,7 +732,7 @@ class LA_Model(nn.Module):
 		self.hidden_size = hidden_size
 
 		# word embedding
-		self.emb_w   = nn.Embedding.from_pretrained(torch.from_numpy(Embedding))#, freeze=False)
+		self.emb_w   = nn.Embedding.from_pretrained(torch.from_numpy(Embedding)) #, freeze=False)
 		
 		self.dro1    = nn.Dropout(dropout)
 		self.Layer1  = nn.LSTM(input_size= Embedding.shape[1],
@@ -740,19 +740,21 @@ class LA_Model(nn.Module):
 						batch_first=True,
 						bidirectional=True,
 						num_layers=2)
-		self.nora    = nn.BatchNorm1d(hidden_size*2)
+		# self.Layer1  = MAN(embeding_shape[1], hidden_size, memory_size=100)
 		# self.Layer2 = AttBlock(len_seq=len_seq,
-		# 					   input_size=130,
+		# 					   input_size= hidden_size*2,
 		# 					   output_size=len_seq,
 		# 					   hidden_size=hidden_size,
-		# 					   num_heads=3,
+		# 					   num_heads=2,
 		# 					   dropout=dropout)
 
-		self.RedLayer = MaxLayer() #AddNormLayer #MaxLayer()  # MeanLayer()
-		self.Dense1   = nn.Sequential(nn.Linear(hidden_size*2, feat_size), nn.LeakyReLU())
-		self.Dense2   = nn.Linear(40, 2)
+		self.nora    = nn.BatchNorm1d(hidden_size*2)
 
-		self.FeatRed  = AttFeat(feat_size, 40)
+		self.RedLayer = MaxLayer() #AddNormLayer() #MaxLayer()  # MeanLayer()
+		self.Dense1   = nn.Sequential(nn.Linear(hidden_size*2, feat_size), nn.LeakyReLU())
+		self.Dense2   = nn.Linear(64, 2)
+
+		self.FeatRed  = AttFeat(feat_size, 64)
 
 	def initHidden(self, batch):
 		return (torch.zeros(4,batch, self.hidden_size),
@@ -764,6 +766,12 @@ class LA_Model(nn.Module):
 		x1, _ = self.Layer1(x1, hc1)
 		# hc2   = self.Layer2.init_hidden(x1.shape[0])
 		# x1    = self.Layer2(x1, hc2)
+
+		# x1 = self.Layer1(x1)
+
+		x1 = x1.permute((0,2,1))
+		x1 = self.nora(x1)
+		x1 = x1.permute((0,2,1))
 		
 		x = self.RedLayer(x1)
 		y = self.Dense1(x)
