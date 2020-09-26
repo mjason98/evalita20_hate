@@ -136,7 +136,7 @@ def prep_features(read_write_paths, first_path=None, bert=False):
 def train_model(train_path, eval_path):
 	save_path = 'models/hate_model.pt'
 
-	return save_path
+	# return save_path
 
 	VOC = {}
 	model = makeModel(LAYER1, SEQ_LENG, DRP,
@@ -155,7 +155,7 @@ def train_model(train_path, eval_path):
 	board = TorchBoard()
 	total_acc_tr, total_acc_val = Train(model, train_load, val_load, lr=LR, 
 								  epochs=EPOCH, board=board, save_path=save_path)
-	board.show('photos/model' + str(1) + '.png')
+	board.show('photos/model' + str(1) + '.png', plot_smood=True)
 	print ('# END Model: train %s | val %s' % (total_acc_tr.max(), total_acc_val.max()))
 
 	del board
@@ -204,11 +204,11 @@ def main():
 
 	train_path, eval_path = EVALITA2020_HATE(DATA_PATH, validation=(0,10), task=TASK)
 
-	# prep_features([(train_path, 'data/train_feat.tsv'), (eval_path, 'data/dev_feat.tsv')], first_path=train_path, bert=True)
+	prep_features([(train_path, 'data/train_feat.tsv'), (eval_path, 'data/dev_feat.tsv')], first_path=train_path, bert=True)
 
 	model_path = train_model(train_path, eval_path)
 
-	predi_path = predict_test_data(model_path)
+	predi_path = predict_test_data(model_path, save_name=os.path.join('send', os.path.basename(DATA_PRED_PATH)))
 
 	order_as_reference(DATA_PRED_PATH, predi_path)
 	

@@ -444,14 +444,14 @@ def EVALITA2020_HATE(filepath, task='hs', validation=(0,1), name_only=False, nam
 			DATA.append((-1,text, on))
 		del data 
 
-		ext_path = ['data/haspeede_TW-train.tsv', 'data/haspeede_FB-train.tsv']
-		for dp in ext_path:
-			print ('# Adding Extra data', colorizar(os.path.basename(dp)))
-			data = pd.read_csv(dp, sep='\t', header=None, names=['id','text','label'])
-			for i in range(len(dp)):
-				text, op, ide = data.loc[i, 'text'], int(data.loc[i, 'label']), int(data.loc[i, 'id'])
-				DATA.append((-1,text, op))
-			del data
+		# ext_path = ['data/haspeede_TW-train.tsv', 'data/haspeede_FB-train.tsv']
+		# for dp in ext_path:
+		# 	print ('# Adding Extra data', colorizar(os.path.basename(dp)))
+		# 	data = pd.read_csv(dp, sep='\t', header=None, names=['id','text','label'])
+		# 	for i in range(len(dp)):
+		# 		text, op, ide = data.loc[i, 'text'], int(data.loc[i, 'label']), int(data.loc[i, 'id'])
+		# 		DATA.append((-1,text, op))
+		# 	del data
 
 	I = [i for i,_, _ in DATA]
 	X = [x for _,x, _ in DATA]

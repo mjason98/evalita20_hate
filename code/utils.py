@@ -137,7 +137,7 @@ class TorchBoard(object):
         if getBest:
             return yo
 
-    def show(self, saveroute):
+    def show(self, saveroute, plot_smood=False):
         fig , axes = plt.subplots()
         for i,l in enumerate(self.dict):
             y = self.dict[l]
@@ -148,6 +148,11 @@ class TorchBoard(object):
                 lab = lab[:7]
             axes.plot(range(len(y)), y, label=l + ' ' + lab)
             axes.scatter([self.best_p[i]], [self.best[i]])
+
+            if plot_smood:
+                w = 3
+                y_hat = [ np.array(y[max(i-w,0):min(len(y),i+w)]).mean() for i in range(len(y))]
+                axes.plot(range(len(y)), y_hat, ls='--', c='g')
 
         fig.legend()
         fig.savefig(saveroute)

@@ -51,7 +51,7 @@ def Train(model, data_train, data_val=None, save_path='models/hate.pt', epochs=2
 			loss1 = (data['i'] >= 0) * loss1
 			loss2 = (data['i'] <  0) * loss2
 
-			loss = 0.8*loss1.mean() + 0.2*loss2.mean()
+			loss = 0.75*loss1.mean() + 0.25*loss2.mean()
 			
 			loss.backward()
 			optim.step()
@@ -68,7 +68,9 @@ def Train(model, data_train, data_val=None, save_path='models/hate.pt', epochs=2
 			if data_val is None and res:
 				saveModel(model, save_path)
 		if data_val is not None:
-			va_acc = Val(model, data_val, metrics=False)
+			va_acc = Val(model, data_val, metrics=True)
+			# Here we take F1
+			va_acc = va_acc[3]
 			ret_val.append(va_acc)
 			
 			res = board.update('test', va_acc, getBest=True)
@@ -87,7 +89,7 @@ def Val(model, data, metrics=False):
 		with torch.no_grad():
 			barr = StatusBar(len(data), title=' Validating:')
 			for d in data:
-				y_hat, _ = model(data['x1'], data['f'])
+				y_hat,_ = model(d['x1'], d['f'])
 				y_hat = y_hat.argmax(dim=1).numpy()
 
 				if true is None:
@@ -96,7 +98,7 @@ def Val(model, data, metrics=False):
 				else:
 					true = np.concatenate([true, d['y'].numpy()], axis=0)
 					pred = np.concatenate([pred, y_hat], axis=0)
-				barr.update(loss=[('prec', met.precision_score(true, pred))])
+				barr.update(loss=[('acc', met.accuracy_score(true, pred)), ('f1', met.f1_score(true, pred))])
 		acc, prec = met.accuracy_score(true, pred), met.precision_score(true, pred)
 		rec, f1   = met.recall_score(true, pred), met.f1_score(true, pred)
 		model.train()
@@ -283,7 +285,7 @@ class AttFeat(nn.Module):
 		super(AttFeat, self).__init__()
 		self.size = feat_size
 		self.proj = proj_size
-		self.R    = nn.Sequential(nn.Linear(feat_size, proj_size), nn.LeakyReLU())
+		self.R    = nn.Sequential(nn.Linear(feat_size, proj_size), nn.ReLU())
 		self.A    = nn.Linear(proj_size, 1, bias=False)
 
 	def forward(self, X):
@@ -750,22 +752,21 @@ class LA_Model(nn.Module):
 						bidirectional=True,
 						num_layers=2)
 		# self.Layer1  = MAN(Embedding.shape[1], hidden_size, memory_size=100)
-		self.Layer2 = AttBlock(len_seq=len_seq,
-							   input_size= hidden_size*2,
-							   output_size=len_seq,
-							   hidden_size=hidden_size,
-							   num_heads=2,
-							   dropout=dropout)
+		# self.Layer2 = AttBlock(len_seq=len_seq,
+		# 					   input_size= hidden_size*2,
+		# 					   output_size=len_seq,
+		# 					   hidden_size=hidden_size,
+		# 					   num_heads=2,
+		# 					   dropout=dropout)
 
 		self.nora     = nn.BatchNorm1d(hidden_size*2)
-		self.nora2    = nn.BatchNorm1d(hidden_size)
+		# self.nora2    = nn.BatchNorm1d(hidden_size)
 
-		self.RedLayer = MaxLayer() #AddNormLayer() #MaxLayer()  # MeanLayer()
-		self.Dense1   = nn.Sequential(nn.Linear(hidden_size, feat_size), nn.LeakyReLU())
+		self.Dense1   = nn.Sequential(MaxLayer(), nn.Linear(hidden_size*2, feat_size), nn.ReLU())
 		self.Task1   = nn.Linear(64, 2)
 		self.Task2   = nn.Linear(64, 2)
-		self.Dense3   = nn.Sequential(nn.Linear(100, feat_size), nn.LeakyReLU())
-		self.Dense4   = nn.Sequential(nn.Linear(768, 192), nn.LeakyReLU(), nn.Linear(192, feat_size), nn.LeakyReLU())
+		self.Dense3   = nn.Sequential(nn.Linear(50, feat_size), nn.ReLU())
+		self.Dense4   = nn.Sequential(nn.Linear(768, 192), nn.ReLU(), nn.Linear(192, feat_size), nn.ReLU())
 
 		self.FeatRed  = AttFeat(feat_size, 64)
 
@@ -775,8 +776,8 @@ class LA_Model(nn.Module):
 
 	def forward(self, X, Fe, ret_vec=False, multi=False):
 		# Cause IG is pressent, the last 100 fetures are separated, and 768 from bert
-		fe1, fe2 = Fe[:, :self.feat_size], self.Dense3(Fe[:, self.feat_size:(self.feat_size+100)])
-		fe3 = self.Dense4(Fe[:, (self.feat_size+100):])
+		fe1, fe2 = Fe[:, :self.feat_size], self.Dense3(Fe[:, self.feat_size:(self.feat_size+50)])
+		fe3 = self.Dense4(Fe[:, (self.feat_size+50):])
 
 		x1    = self.dro1(self.emb_w(X))
 		hc1   = self.initHidden(x1.shape[0])
@@ -786,8 +787,8 @@ class LA_Model(nn.Module):
 		x1 = self.nora(x1)
 		x1 = x1.permute((0,2,1))
 
-		hc2   = self.Layer2.init_hidden(x1.shape[0])
-		x1    = self.Layer2(x1, hc2)
+		# hc2   = self.Layer2.init_hidden(x1.shape[0])
+		# x1    = self.Layer2(x1, hc2)
 
 		# x1 = self.Layer1(x1)
 
@@ -795,8 +796,7 @@ class LA_Model(nn.Module):
 		# x1 = self.nora2(x1)
 		# x1 = x1.permute((0,2,1))
 		
-		x = self.RedLayer(x1)
-		y = self.Dense1(x)
+		y = self.Dense1(x1)
 		y = self.FeatRed([y, fe1, fe2, fe3])
 
 		if ret_vec:

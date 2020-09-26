@@ -29,7 +29,7 @@ def calculate_ig_part(vec1, vec2, T, not_term=False):
         term = 1.0 - vec1 / T
         return term * log_
 
-def calculate_IG(data_raw, ctn=100, save_path=None):
+def calculate_IG(data_raw, ctn=50, save_path=None):
     '''
         data_raw most be a pandas.Series and most have headers name: 'id', 'txt' and 'y'
     '''
