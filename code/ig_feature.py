@@ -45,7 +45,7 @@ def calculate_IG(data_raw, ctn=50, save_path=None):
         bar.update()
 
     print ('# Feature Selection')
-    vectorizer = CountVectorizer(token_pattern=r'[^ ]+')
+    vectorizer = CountVectorizer(token_pattern=r'[^ ]+', binary=True)
     data = vectorizer.fit_transform(data)
     data = data.toarray()
     l    = np.array(l)
