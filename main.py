@@ -85,24 +85,13 @@ def calculatePreprocesing():
 	f.close()
 
 def delete_temporal_files():
-	if os.path.isfile('data/test.tsv'):
-		os.remove('data/test.tsv')
-	if os.path.isfile('data/iglist'):
-		os.remove('data/iglist')
-	if os.path.isfile('data/params.prm'):
-		os.remove('data/params.prm')
-	if os.path.isfile('data/test_prep.csv'):
-		os.remove('data/test_prep.csv')
-	if os.path.isfile('data/train.tsv'):
-		os.remove('data/train.tsv')
-	if os.path.isfile('data/train_prep.csv'):
-		os.remove('data/train_prep.csv')
-	if os.path.isfile('data/dev.tsv'):
-		os.remove('data/dev.tsv')
-	if os.path.isfile('data/dev_prep.csv'):
-		os.remove('data/dev_prep.csv')
-	if os.path.isfile('data/dev_feat.csv'):
-		os.remove('data/dev_feat.csv')
+	file_list = ['test.tsv', 'iglist', 'params.prm', 'test_prep.csv','train_prep.csv','dev_prep.csv', 'train.tsv', 'dev.tsv', 'test.tsv', 'train_feat.tsv', 'test_feat.tsv', 'dev_feat.tsv', 'bert_train_feat.tsv', 'bert_test_feat.tsv', 'bert_dev_feat.tsv']
+
+	print ('# Deleting Temporal Files')
+	for f in file_list:
+		file = os.path.join('data', f)
+		if os.path.isfile(file):
+			os.remove(file)
 
 def prep_features(read_write_paths, first_path=None, bert=False):
 	if bert:
@@ -213,7 +202,7 @@ def main():
 	order_as_reference(DATA_PRED_PATH, predi_path)
 	
 	# Opcional
-	# delete_temporal_files()
+	delete_temporal_files()
 
 if __name__ == '__main__':
 	check_params(arg=sys.argv[1:])
