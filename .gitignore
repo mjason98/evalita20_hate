@@ -1,4 +1,10 @@
-/data
+/data/*.csv
+/data/*.tsv
+/data/*.zip
+/data/*.vec
+/data/mariano
+/data/password*
+
 /models
 /photos
 code_work.code-workspace
@@ -7,3 +13,5 @@ menesteres.py
 /code/_pyfreeling.so
 /code/iter*
 /send
+UO.txt
+

@@ -152,7 +152,7 @@ class TorchBoard(object):
             if plot_smood:
                 w = 3
                 y_hat = [ np.array(y[max(i-w,0):min(len(y),i+w)]).mean() for i in range(len(y))]
-                axes.plot(range(len(y)), y_hat, ls='--', c='g')
+                axes.plot(range(len(y)), y_hat, ls='--', color='gray')
 
         fig.legend()
         fig.savefig(saveroute)
