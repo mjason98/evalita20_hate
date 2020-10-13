@@ -1,9 +1,11 @@
 /data/*.csv
 /data/*.tsv
 /data/*.zip
-/data/*.vec
+/data/wiki-it300.vec
+/data/*.prm
 /data/mariano
 /data/password*
+/data/iglist
 
 /models
 /photos

@@ -755,12 +755,11 @@ class LA_Model(nn.Module):
 		# self.Layer2 = AttBlock(len_seq=len_seq,
 		# 					   input_size= hidden_size*2,
 		# 					   output_size=len_seq,
-		# 					   hidden_size=hidden_size,
+		# 					   hidden_size=hidden_size*2,
 		# 					   num_heads=2,
 		# 					   dropout=dropout)
 
 		self.nora     = nn.BatchNorm1d(hidden_size*2)
-		# self.nora2    = nn.BatchNorm1d(hidden_size)
 
 		self.Dense1   = nn.Sequential(MaxLayer(), nn.Linear(hidden_size*2, feat_size), nn.ReLU())
 		self.Task1   = nn.Linear(64, 2)
@@ -775,7 +774,7 @@ class LA_Model(nn.Module):
 				torch.zeros(4,batch, self.hidden_size))
 
 	def forward(self, X, Fe, ret_vec=False, multi=False):
-		# Cause IG is pressent, the last 100 fetures are separated, and 768 from bert
+		# Cause IG is pressent, the last 50 fetures are separated, and 768 from bert
 		fe1, fe2 = Fe[:, :self.feat_size], self.Dense3(Fe[:, self.feat_size:(self.feat_size+50)])
 		fe3 = self.Dense4(Fe[:, (self.feat_size+50):])
 
@@ -789,12 +788,6 @@ class LA_Model(nn.Module):
 
 		# hc2   = self.Layer2.init_hidden(x1.shape[0])
 		# x1    = self.Layer2(x1, hc2)
-
-		# x1 = self.Layer1(x1)
-
-		# x1 = x1.permute((0,2,1))
-		# x1 = self.nora2(x1)
-		# x1 = x1.permute((0,2,1))
 		
 		y = self.Dense1(x1)
 		y = self.FeatRed([y, fe1, fe2, fe3])
