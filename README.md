@@ -14,9 +14,10 @@ The data is palced inside a data folder:
     cp DIRDATAOLD/training_set_senticpolc16.tsv data/training_set_senticpolc16.tsv
 where DIRDATA is the data location for haspeede2 dataset and DIRDATAOLD for sentipolc_2016 dataset.
 
-The embedding used for now is not available.
+The Pre-Trained BERT model from transformer python library was used. The path to this models lies in code/ig_frature.py file with the variable name BERT_PATH.
 
 * Urls:
     Freeling: ...
+    BERT: https://huggingface.co/dbmdz/bert-base-italian-cased
     Evalita_2020: ...
     Senticpolc_2016: ...
