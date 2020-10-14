@@ -675,65 +675,6 @@ class LstmAtt(nn.Module):
 	def save(self, path):
 		torch.save(self.state_dict(), path) 
 
-class LstmAtt_S(nn.Module):
-	def __init__(self, hidden_size, len_seq, feat_size=49, dropout=0.2):
-		super(LstmAtt_S, self).__init__()
-		self.criterion1 = nn.CrossEntropyLoss()#weight=torch.Tensor([0.8,1.2]))
-		self.hidden_size = hidden_size
-		
-		self.dro1    = nn.Dropout(dropout)
-		# self.Layer1  = nn.LSTM(input_size= 129,
-		# 				hidden_size= hidden_size,
-		# 				batch_first=True,
-		# 				bidirectional=True,
-		# 				num_layers=1)
-		# self.Layer2  = AttRnnBlk(input_size = 130, #hidden_size*2,
-		# 						 output_size=len_seq,
-		# 						 hidden_size=hidden_size,
-		# 						 num_heads=3,
-		# 						 dropout=dropout)
-		self.Layer2 = AttBlock(len_seq=len_seq,
-							   input_size=130,
-							   output_size=len_seq,
-							   hidden_size=hidden_size,
-							   num_heads=3,
-							   dropout=dropout)
-
-		self.RedLayer = MaxLayer() #MaxLayer()  # MeanLayer()
-		self.Dense1   = nn.Sequential(nn.Linear(hidden_size, feat_size), nn.ReLU())
-		self.Dense2   = nn.Linear(40, 2)
-
-		self.FeatRed  = AttFeat(feat_size, 40)
-
-	def initHidden(self, batch):
-		return (torch.zeros(2,batch, self.hidden_size),
-				torch.zeros(2,batch, self.hidden_size)) #,
-				#self.Layer2.init_hidden(batch))
-
-	def forward(self, X, Fe, ret_vec=False):
-		x1 = self.dro1(X)
-		#x1 = X
-		# hc1   = self.initHidden(x1.shape[0])
-		# x1, _ = self.Layer1(x1, hc1)
-		hc2   = self.Layer2.init_hidden(x1.shape[0])
-		x1    = self.Layer2(x1, hc2)
-
-		
-		x = self.RedLayer(x1)
-		y = self.Dense1(x)
-		y = self.FeatRed([y, Fe])
-
-		if ret_vec:
-			return y
-		y1 = self.Dense2(y).squeeze()
-		return y1
-
-	def load(self, path):
-		self.load_state_dict(torch.load(path))
-
-	def save(self, path):
-		torch.save(self.state_dict(), path) 
-
 class LA_Model(nn.Module):
 	def __init__(self, hidden_size, len_seq, Embedding, feat_size=61, embeding_shape=(1,300), dropout=0.2):
 		super(LA_Model, self).__init__()
@@ -806,63 +747,6 @@ class LA_Model(nn.Module):
 	def save(self, path):
 		torch.save(self.state_dict(), path) 
 
-class ManNet_S(nn.Module):
-	def __init__(self, hidden_size, len_seq, feat_size=49, dropout=0.2):
-		super(ManNet_S, self).__init__()
-		self.criterion1 = nn.CrossEntropyLoss()
-		self.hidden_size = hidden_size
-		self.memory_size = 100
-		
-		self.dro1    = nn.Dropout(dropout)
-		self.Layer1  = MAN(130, hidden_size, memory_size=self.memory_size)
-
-		self.RedLayer = MeanLayer()
-		self.Dense1   = nn.Sequential(nn.Linear(hidden_size*2, feat_size), nn.ReLU())
-		self.Dense2   = nn.Linear(40, 2)
-
-		self.FeatRed  = AttFeat(feat_size, 40)
-
-	def forward(self, X, Fe, ret_vec=False):
-		x = self.dro1(X)
-		x = self.Layer1(x)
-
-		x = self.RedLayer(x)
-		x = self.Dense1(x)
-		y = self.FeatRed([x, Fe])
-		
-		if ret_vec:
-			return y
-		y = self.Dense2(y)
-		return y.squeeze()
-
-	def load(self, path):
-		self.load_state_dict(torch.load(path))
-		self.Layer1.M = np.fromfile(path+'.M', dtype=np.float32).reshape((self.memory_size,-1))
-
-	def save(self, path):
-		torch.save(self.state_dict(), path) 
-		self.Layer1.M.tofile(path+'.M')
-
-class SageModel(nn.Module):
-	def __init__(self, in_size, layer, num_inputs=2):
-		super(SageModel,self).__init__()
-		self.criterion1 = nn.CrossEntropyLoss()
-		self.num_inputs = num_inputs
-		self.Dense = nn.Linear(layer,2)
-		self.RED   = AttFeat(in_size//self.num_inputs,layer)
-
-	def forward(self, X, F, ret_vec=False):
-		feat = []
-		l = X.shape[1] // self.num_inputs
-		for i in range(self.num_inputs):
-			feat.append(X[:,l*i:l*(i+1)])
-		x = self.RED(feat)
-		return self.Dense(x).squeeze()
-
-	def load(self, path):
-		self.load_state_dict(torch.load(path))
-	def save(self, path):
-		torch.save(self.state_dict(), path) 
 
 # =========================================================================
 def makeModel(neuronas, leng_seq, dropout=0.2, Enb = None, arquitectura=0):
@@ -874,10 +758,6 @@ def makeModel(neuronas, leng_seq, dropout=0.2, Enb = None, arquitectura=0):
 	
 	if arquitectura == 'lstm':
 		return LstmAtt(neuronas, leng_seq, dropout=dropout,Embedding=Enb, feat_size=feat_size)
-	elif arquitectura == 'lstm_s':
-		return LstmAtt_S(neuronas, max_vec_size, dropout=dropout, feat_size=feat_size)
-	elif arquitectura == 'mann_s':
-		return ManNet_S(neuronas, max_vec_size, dropout=dropout, feat_size=feat_size)
 	elif arquitectura == 'mann':
 		return ManNet(neuronas, leng_seq, dropout=dropout,Embedding=Enb, feat_size=feat_size)
 	elif arquitectura == 'conv':
