@@ -12,6 +12,7 @@ from .utils import StatusBar, colorizar
 
 from sklearn.feature_extraction.text import CountVectorizer
 
+# pre-trained Bert folder path
 BERT_PATH = '/DATA/Mainstorage/Prog/NLP/dbmdz/bert-base-italian-uncased'
 bert_model = None
 bert_tk = None
