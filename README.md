@@ -11,7 +11,7 @@ cp $FREELINGDIR/share/freeling/APIs/python3/pyfreeling.py  code/ pyfreeling.py
 
 where $FREELINGDIR is the installation path of Freeling (deafult: /usr/local)
 
-The data is palced inside a data folder:
+The data is placed inside a data folder:
 ```bash
 mkdir data
 cp DIRDATA/haspeede2_dev_taskAB.tsv data/haspeede2_dev_taskAB.tsv
@@ -29,16 +29,16 @@ bert_model = None
 bert_tk = None
 ```
 
-To predict from unlabeled data, firts change the test data inside main.py:
+To predict from unlabeled data, first change the test data inside main.py:
 ```python
 DATA_PRED_PATH = 'data/haspeede2_test_taskAB-tweets.tsv'
 # DATA_PRED_PATH = 'data/haspeede2-test_taskAB-news.tsv'
 ```
-comment the one that is not relevant an finnaly to train the model run:
+comment the one that is not relevant an finally to train the model run:
 ```bash
 python main.py
 ```
-## Hyperparameters
+## Hyper-parameters
 The hyperparameters can be changed inside the main.py code, but also though cosole. To see the whole list run:
 ```bach
 python main.py --help
