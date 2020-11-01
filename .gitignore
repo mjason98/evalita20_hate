@@ -17,4 +17,5 @@ menesteres.py
 /send
 
 *.txt
+.fuse*
 
