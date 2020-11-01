@@ -6,7 +6,7 @@ This is the model used on Task A: Hate Speech Detection at Evalita 2020.
 This project uses [FreeLing 4.0](http://nlp.lsi.upc.edu/freeling/index.php/node/30) Tool. To archive a successful performance, you most install FreeLing with the python API and run:
 ```bash
 cp $FREELINGDIR/share/freeling/APIs/python3/_pyfreeling.so  code/_pyfreeling.so
-cp $FREELINGDIR/share/freeling/APIs/python3/_pyfreeling.py  code/pyfreeling.py
+cp $FREELINGDIR/share/freeling/APIs/python3/pyfreeling.py  code/ pyfreeling.py
 ```
 
 where $FREELINGDIR is the installation path of Freeling (deafult: /usr/local)
