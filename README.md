@@ -48,5 +48,5 @@ The hyperparameters can be changed inside the main.py code, but also though coso
 python main.py --help
 ```
 ## Dataset urls:
-* Evalita_2020: http://www.di.unito.it/~tutreeb/haspeede-evalita20/index.html
+* Evalita_2020: http://www.di.unito.it/~tutreeb/haspeede-evalita20/index.html 
 * Senticpolc_2016: http://www.di.unito.it/~tutreeb/sentipolc-evalita16/index.html
