@@ -1,12 +1,19 @@
 # Italian Deep Ensemble Model 
 This is the model used on Task A: Hate Speech Detection at Evalita 2020.
 
+## Requirements
+First clone or download the project as a zip file. Then on the location of the downloaded file(or clonned folder):
+```bach 
+cd evalita_20_hate
+pip install -r requirements.txt
+```
+
 ## Usage
 
 This project uses [FreeLing 4.0](http://nlp.lsi.upc.edu/freeling/index.php/node/30) Tool. To archive a successful performance, you most install FreeLing with the python API and run:
 ```bash
 cp $FREELINGDIR/share/freeling/APIs/python3/_pyfreeling.so  code/_pyfreeling.so
-cp $FREELINGDIR/share/freeling/APIs/python3/pyfreeling.py  code/ pyfreeling.py
+cp $FREELINGDIR/share/freeling/APIs/python3/pyfreeling.py  code/pyfreeling.py
 ```
 
 where $FREELINGDIR is the installation path of Freeling (deafult: /usr/local)
@@ -38,11 +45,13 @@ comment the one that is not relevant an finally to train the model run:
 ```bash
 python main.py
 ```
+
 ## Hyper-parameters
 The hyperparameters can be changed inside the main.py code, but also though cosole. To see the whole list run:
 ```bach
 python main.py --help
 ```
+
 ## Dataset urls:
 * Evalita_2020: http://www.di.unito.it/~tutreeb/haspeede-evalita20/index.html 
 * Senticpolc_2016: http://www.di.unito.it/~tutreeb/sentipolc-evalita16/index.html

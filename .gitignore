@@ -16,6 +16,7 @@ menesteres.py
 /code/iter*
 /send
 
-*.txt
+UO.txt
+experimtents.txt
 .fuse*
 
